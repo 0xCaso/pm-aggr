@@ -338,6 +338,7 @@ Single-page layout with three main sections:
 - Size bars: horizontal bar proportional to level size
 - Updates in real-time as WebSocket data arrives
 - Truncated to top 15 levels per side for readability
+- **Venue filter toggle:** three buttons — "Combined" (default), "Kalshi", "Polymarket" — above the order book. When a single venue is selected, only that venue's levels are shown. This lets users compare how each venue's book differs from the combined view.
 
 ### QuotePanel Component
 
