@@ -3,8 +3,9 @@ import { normalizeDFlow, normalizePolymarket } from '@/lib/normalize';
 
 describe('normalizeDFlow', () => {
   it('converts yes_bids to YES bids and NO asks', () => {
+    // DFlow prices are in 0-1 range (e.g., "0.37" = 37 cents)
     const result = normalizeDFlow({
-      yes_bids: { '37': '100', '36': '200' },
+      yes_bids: { '0.37': '100', '0.36': '200' },
       no_bids: {},
     });
 
@@ -26,7 +27,7 @@ describe('normalizeDFlow', () => {
   it('converts no_bids to NO bids and YES asks', () => {
     const result = normalizeDFlow({
       yes_bids: {},
-      no_bids: { '60': '150', '62': '50' },
+      no_bids: { '0.60': '150', '0.62': '50' },
     });
 
     // NO bids: directly from no_bids
@@ -46,8 +47,8 @@ describe('normalizeDFlow', () => {
 
   it('handles both sides populated', () => {
     const result = normalizeDFlow({
-      yes_bids: { '37': '100' },
-      no_bids: { '62': '80' },
+      yes_bids: { '0.37': '100' },
+      no_bids: { '0.62': '80' },
     });
 
     // YES book
@@ -77,7 +78,7 @@ describe('normalizeDFlow', () => {
 
   it('sorts bids descending and asks ascending', () => {
     const result = normalizeDFlow({
-      yes_bids: { '34': '10', '37': '20', '35': '30' },
+      yes_bids: { '0.34': '10', '0.37': '20', '0.35': '30' },
       no_bids: {},
     });
     expect(result.yes.bids.map((l) => l.price)).toEqual([0.37, 0.35, 0.34]);

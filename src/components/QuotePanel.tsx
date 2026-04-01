@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import type { QuoteResult, Side } from '@/lib/types';
 
 interface QuotePanelProps {
@@ -76,26 +77,34 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
     };
   }, [amount, side, fetchQuote]);
 
+  // Calculate venue percentages for the split bar
+  const polyPct = quote && quote.totalShares > 0
+    ? (quote.venueBreakdown.polymarket.shares / quote.totalShares) * 100
+    : 0;
+  const kalshiPct = quote && quote.totalShares > 0
+    ? (quote.venueBreakdown.kalshi.shares / quote.totalShares) * 100
+    : 0;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Side toggle */}
-      <div className="flex gap-1">
+      <div className="flex">
         <button
           onClick={() => onSideChange('yes')}
-          className={`flex-1 py-2 text-sm font-medium rounded-l transition-colors ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-l border transition-all cursor-pointer ${
             side === 'yes'
-              ? 'bg-green-600 text-white'
-              : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+              ? 'bg-green-600 border-green-500 text-white'
+              : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
           }`}
         >
           YES
         </button>
         <button
           onClick={() => onSideChange('no')}
-          className={`flex-1 py-2 text-sm font-medium rounded-r transition-colors ${
+          className={`flex-1 py-2.5 text-sm font-medium rounded-r border border-l-0 transition-all cursor-pointer ${
             side === 'no'
-              ? 'bg-red-600 text-white'
-              : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+              ? 'bg-red-600 border-red-500 text-white'
+              : 'bg-gray-900 border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600'
           }`}
         >
           NO
@@ -114,7 +123,7 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
           placeholder="Enter amount..."
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 pl-7 text-sm text-gray-100 font-mono focus:outline-none focus:border-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2.5 pl-7 text-sm text-gray-100 font-mono focus:outline-none focus:border-gray-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
       </div>
 
@@ -128,12 +137,14 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
       )}
 
       {quote && !loading && (
-        <div className="bg-gray-900 rounded border border-gray-800 p-3 space-y-2">
-          <div className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+        <div className="bg-gray-900 rounded border border-gray-800 p-4 space-y-3">
+          {/* Quote Result Header */}
+          <div className="font-host-grotesk text-xs text-gray-500 font-semibold uppercase tracking-wider">
             Quote Result
           </div>
 
-          <div className="grid grid-cols-2 gap-y-1 text-sm">
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 gap-y-1.5 text-sm">
             <span className="text-gray-400">Shares:</span>
             <span className="text-gray-100 font-mono text-right">
               {formatNumber(quote.totalShares)}
@@ -151,24 +162,93 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
           </div>
 
           {/* Venue breakdown */}
-          <div className="border-t border-gray-800 pt-2 mt-2 space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-blue-400">Kalshi:</span>
-              <span className="text-gray-300 font-mono">
-                {formatNumber(quote.venueBreakdown.kalshi.shares)} shares ({formatDollars(quote.venueBreakdown.kalshi.cost)})
-              </span>
+          <div className="border-t border-gray-800 pt-3 mt-3">
+            <div className="font-host-grotesk text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">
+              By Venue
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-purple-400">Polymarket:</span>
-              <span className="text-gray-300 font-mono">
-                {formatNumber(quote.venueBreakdown.polymarket.shares)} shares ({formatDollars(quote.venueBreakdown.polymarket.cost)})
-              </span>
+            
+            <div className="space-y-2">
+              {/* Polymarket row */}
+              <div 
+                className="flex items-center justify-between text-sm py-1.5 px-2 rounded"
+                style={{ 
+                  borderLeft: '3px solid #2F5CFF',
+                  backgroundColor: 'rgba(47, 92, 255, 0.05)'
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Image
+                    src="/logo-polymarket.png"
+                    alt="Polymarket"
+                    width={16}
+                    height={16}
+                    className="rounded-sm"
+                  />
+                  <span className="text-polymarket font-medium">Polymarket</span>
+                </div>
+                <span className="text-gray-300 font-mono text-xs">
+                  {formatNumber(quote.venueBreakdown.polymarket.shares)} sh
+                </span>
+              </div>
+
+              {/* Kalshi row */}
+              <div 
+                className="flex items-center justify-between text-sm py-1.5 px-2 rounded"
+                style={{ 
+                  borderLeft: '3px solid #04D991',
+                  backgroundColor: 'rgba(4, 217, 145, 0.05)'
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Image
+                    src="/logo-kalshi.png"
+                    alt="Kalshi"
+                    width={16}
+                    height={16}
+                    className="rounded-sm"
+                  />
+                  <span className="text-kalshi font-medium">Kalshi</span>
+                </div>
+                <span className="text-gray-300 font-mono text-xs">
+                  {formatNumber(quote.venueBreakdown.kalshi.shares)} sh
+                </span>
+              </div>
             </div>
+
+            {/* Fill distribution bar */}
+            {quote.totalShares > 0 && (
+              <div className="mt-3">
+                <div className="h-2 rounded-full overflow-hidden flex">
+                  {polyPct > 0 && (
+                    <div 
+                      className="h-full transition-all duration-300"
+                      style={{ 
+                        width: `${polyPct}%`,
+                        backgroundColor: '#2F5CFF'
+                      }}
+                    />
+                  )}
+                  {kalshiPct > 0 && (
+                    <div 
+                      className="h-full transition-all duration-300"
+                      style={{ 
+                        width: `${kalshiPct}%`,
+                        backgroundColor: '#04D991'
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-1 font-mono">
+                  <span>{polyPct.toFixed(0)}%</span>
+                  <span>{kalshiPct.toFixed(0)}%</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Book exhausted warning */}
           {quote.bookExhausted && (
-            <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-400/10 rounded">
+            <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-400/10 rounded border border-yellow-400/20">
               Book exhausted — not enough liquidity to fill the full amount.
               Only {formatDollars(quote.totalCost)} of {formatDollars(parseFloat(amount))} was filled.
             </div>

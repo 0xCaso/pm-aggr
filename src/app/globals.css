@@ -1,1 +1,69 @@
 @import "tailwindcss";
+
+:root {
+  /* Brand colors */
+  --color-polymarket: #2F5CFF;
+  --color-kalshi: #04D991;
+  
+  /* Semantic colors */
+  --color-bid: #22c55e;  /* green-500 */
+  --color-ask: #ef4444;  /* red-500 */
+  --color-buy: #22c55e;
+  --color-sell: #ef4444;
+  
+  /* Fonts */
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: 'Host Grotesk', sans-serif;
+}
+
+/* Base font */
+body {
+  font-family: var(--font-mono);
+}
+
+/* Display font for important labels */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Brand color utilities */
+.text-polymarket {
+  color: var(--color-polymarket);
+}
+
+.text-kalshi {
+  color: var(--color-kalshi);
+}
+
+.bg-polymarket {
+  background-color: var(--color-polymarket);
+}
+
+.bg-kalshi {
+  background-color: var(--color-kalshi);
+}
+
+.border-polymarket {
+  border-color: var(--color-polymarket);
+}
+
+.border-kalshi {
+  border-color: var(--color-kalshi);
+}
+
+/* Bid/Ask colors */
+.text-bid {
+  color: var(--color-bid);
+}
+
+.text-ask {
+  color: var(--color-ask);
+}
+
+.bg-bid {
+  background-color: var(--color-bid);
+}
+
+.bg-ask {
+  background-color: var(--color-ask);
+}

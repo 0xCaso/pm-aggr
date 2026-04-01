@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type { ConnectionStatus, Venue } from '@/lib/types';
 
 interface StatusBannerProps {
@@ -9,23 +10,49 @@ interface StatusBannerProps {
 }
 
 const STATUS_COLORS: Record<ConnectionStatus, string> = {
-  connected: 'bg-green-500',
+  connected: 'bg-bid',
   reconnecting: 'bg-yellow-500',
-  disconnected: 'bg-red-500',
+  disconnected: 'bg-ask',
 };
 
-const STATUS_LABELS: Record<ConnectionStatus, string> = {
-  connected: 'Connected',
-  reconnecting: 'Reconnecting...',
-  disconnected: 'Disconnected',
+const STATUS_TEXT: Record<ConnectionStatus, string> = {
+  connected: 'text-bid',
+  reconnecting: 'text-yellow-500',
+  disconnected: 'text-ask',
 };
 
 function StatusDot({ status, label }: { status: ConnectionStatus; label: string }) {
   return (
-    <div className="flex items-center gap-1.5 text-sm">
-      <span className={`inline-block w-2 h-2 rounded-full ${STATUS_COLORS[status]}`} />
-      <span className="text-gray-400">{label}:</span>
-      <span className="text-gray-300">{STATUS_LABELS[status]}</span>
+    <div className="flex items-center gap-1.5 text-xs">
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${STATUS_COLORS[status]}`} />
+      <span className="text-gray-500">{label}</span>
+      <span className={STATUS_TEXT[status]}>{status}</span>
+    </div>
+  );
+}
+
+function VenueStatus({ 
+  venue, 
+  status, 
+  logo 
+}: { 
+  venue: string; 
+  status: ConnectionStatus; 
+  logo: string;
+}) {
+  const brandColor = venue === 'kalshi' ? 'border-kalshi' : 'border-polymarket';
+  
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <div className={`relative w-4 h-4 rounded overflow-hidden border ${brandColor}`}>
+        <Image
+          src={logo}
+          alt={`${venue} logo`}
+          fill
+          className="object-contain"
+        />
+      </div>
+      <span className={STATUS_TEXT[status]}>{status}</span>
     </div>
   );
 }
@@ -39,21 +66,29 @@ export function StatusBanner({ relayStatus, venueStatus, isStale }: StatusBanner
 
   return (
     <div
-      className={`border-b border-gray-800 transition-all ${
-        allConnected ? 'py-1 px-4' : 'py-2 px-4'
+      className={`border-b border-gray-800/50 transition-all ${
+        allConnected ? 'py-1.5 px-4' : 'py-2 px-4'
       }`}
     >
-      <div className="flex items-center gap-4 flex-wrap">
-        <StatusDot status={relayStatus} label="Relay" />
+      <div className="flex items-center gap-5 flex-wrap">
+        <StatusDot status={relayStatus} label="relay" />
         {venueStatus && (
           <>
-            <StatusDot status={venueStatus.kalshi} label="Kalshi" />
-            <StatusDot status={venueStatus.polymarket} label="Polymarket" />
+            <VenueStatus 
+              venue="polymarket" 
+              status={venueStatus.polymarket} 
+              logo="/logo-polymarket.png" 
+            />
+            <VenueStatus 
+              venue="kalshi" 
+              status={venueStatus.kalshi} 
+              logo="/logo-kalshi.png" 
+            />
           </>
         )}
         {isStale && (
-          <span className="text-yellow-400 text-sm font-medium ml-auto">
-            ⚠ Data may be stale (no update for 30s)
+          <span className="text-yellow-500 text-xs ml-auto">
+            stale data (no update 30s)
           </span>
         )}
       </div>

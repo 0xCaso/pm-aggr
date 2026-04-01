@@ -23,8 +23,9 @@ export function normalizeDFlow(raw: DFlowRawBook): TwoSidedBook {
   const yesBids: PriceLevel[] = [];
   const noAsks: PriceLevel[] = [];
 
+  // DFlow prices are already in 0-1 range (e.g., "0.37" = 37 cents = 0.37)
   for (const [priceStr, sizeStr] of Object.entries(raw.yes_bids)) {
-    const price = Number(priceStr) / 100;
+    const price = Number(priceStr);
     const size = Number(sizeStr);
     yesBids.push({ price, size, venue: 'kalshi' });
     noAsks.push({ price: round(1 - price), size, venue: 'kalshi' });
@@ -34,7 +35,7 @@ export function normalizeDFlow(raw: DFlowRawBook): TwoSidedBook {
   const yesAsks: PriceLevel[] = [];
 
   for (const [priceStr, sizeStr] of Object.entries(raw.no_bids)) {
-    const price = Number(priceStr) / 100;
+    const price = Number(priceStr);
     const size = Number(sizeStr);
     noBids.push({ price, size, venue: 'kalshi' });
     yesAsks.push({ price: round(1 - price), size, venue: 'kalshi' });
