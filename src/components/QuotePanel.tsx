@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import type { QuoteResult, Side } from '@/lib/types';
+import type { QuoteFill, QuoteResult, Side, Venue } from '@/lib/types';
 
 interface QuotePanelProps {
   side: Side;
@@ -10,7 +10,7 @@ interface QuotePanelProps {
 }
 
 function formatCents(price: number): string {
-  return `${(price * 100).toFixed(2)}¢`;
+  return `${(price * 100).toFixed(1)}¢`;
 }
 
 function formatNumber(n: number): string {
@@ -20,6 +20,60 @@ function formatNumber(n: number): string {
 function formatDollars(n: number): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+function formatCompactDollars(n: number): string {
+  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${n.toFixed(0)}`;
+}
+
+// Group fills by price level for display
+interface GroupedFill {
+  price: number;
+  venues: { venue: Venue; shares: number; cost: number }[];
+  totalShares: number;
+  totalCost: number;
+}
+
+function groupFillsByPrice(fills: QuoteFill[]): GroupedFill[] {
+  const byPrice = new Map<number, GroupedFill>();
+  
+  for (const fill of fills) {
+    const roundedPrice = Math.round(fill.price * 1000) / 1000;
+    if (!byPrice.has(roundedPrice)) {
+      byPrice.set(roundedPrice, {
+        price: roundedPrice,
+        venues: [],
+        totalShares: 0,
+        totalCost: 0,
+      });
+    }
+    const group = byPrice.get(roundedPrice)!;
+    
+    // Check if venue already exists at this price
+    const existingVenue = group.venues.find(v => v.venue === fill.venue);
+    if (existingVenue) {
+      existingVenue.shares += fill.shares;
+      existingVenue.cost += fill.cost;
+    } else {
+      group.venues.push({ venue: fill.venue, shares: fill.shares, cost: fill.cost });
+    }
+    group.totalShares += fill.shares;
+    group.totalCost += fill.cost;
+  }
+  
+  // Sort by price ascending
+  return [...byPrice.values()].sort((a, b) => a.price - b.price);
+}
+
+const VENUE_COLORS: Record<Venue, string> = {
+  polymarket: '#2F5CFF',
+  kalshi: '#04D991',
+};
+
+const VENUE_LOGOS: Record<Venue, string> = {
+  polymarket: '/logo-polymarket.png',
+  kalshi: '/logo-kalshi.png',
+};
 
 export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
   const [amount, setAmount] = useState('');
@@ -85,8 +139,11 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
     ? (quote.venueBreakdown.kalshi.shares / quote.totalShares) * 100
     : 0;
 
+  // Group fills by price for the breakdown view
+  const groupedFills = quote ? groupFillsByPrice(quote.fills) : [];
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 h-full">
       {/* Side toggle */}
       <div className="flex">
         <button
@@ -161,7 +218,7 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
             </span>
           </div>
 
-          {/* Venue breakdown */}
+          {/* Venue breakdown with distribution bar */}
           <div className="border-t border-gray-800 pt-3 mt-3">
             <div className="font-host-grotesk text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">
               By Venue
@@ -245,6 +302,59 @@ export function QuotePanel({ side, onSideChange }: QuotePanelProps) {
               </div>
             )}
           </div>
+
+          {/* Fill Details - grouped by price level */}
+          {groupedFills.length > 0 && (
+            <div className="border-t border-gray-800 pt-3 mt-3">
+              <div className="font-host-grotesk text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2">
+                Fill Details
+              </div>
+              
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {groupedFills.map((group) => (
+                  <div 
+                    key={group.price}
+                    className="flex items-center gap-2 text-xs py-1 px-2 rounded bg-gray-800/50"
+                  >
+                    {/* Price */}
+                    <span className="text-gray-100 font-mono w-12 shrink-0">
+                      {formatCents(group.price)}
+                    </span>
+                    
+                    {/* Venue pills */}
+                    <div className="flex gap-1 flex-1 min-w-0">
+                      {group.venues.map((v) => (
+                        <div
+                          key={v.venue}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs"
+                          style={{
+                            backgroundColor: `${VENUE_COLORS[v.venue]}15`,
+                            border: `1px solid ${VENUE_COLORS[v.venue]}40`,
+                          }}
+                        >
+                          <Image
+                            src={VENUE_LOGOS[v.venue]}
+                            alt={v.venue}
+                            width={12}
+                            height={12}
+                            className="rounded-sm"
+                          />
+                          <span className="font-mono text-gray-300">
+                            {formatNumber(v.shares)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* Cost at this level */}
+                    <span className="text-gray-500 font-mono shrink-0">
+                      {formatCompactDollars(group.totalCost)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Book exhausted warning */}
           {quote.bookExhausted && (

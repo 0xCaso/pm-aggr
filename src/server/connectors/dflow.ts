@@ -19,7 +19,7 @@ export class DFlowConnector implements VenueConnector {
 
   connect(): void {
     this.shouldReconnect = true;
-    this.doConnect();
+    this.doConnect(true); // true = initial connect, fetch REST snapshot
   }
 
   disconnect(): void {
@@ -54,7 +54,32 @@ export class DFlowConnector implements VenueConnector {
     }
   }
 
-  private doConnect(): void {
+  private async fetchRestSnapshot(): Promise<void> {
+    try {
+      const resp = await fetch(REST_URL);
+      if (resp.ok) {
+        const data = await resp.json();
+        const raw: DFlowRawBook = {
+          yes_bids: data.yes_bids ?? {},
+          no_bids: data.no_bids ?? {},
+        };
+        const book = normalizeDFlow(raw);
+        this.bookCb?.(book);
+        console.log('[DFlow] REST snapshot loaded');
+      } else {
+        console.error('[DFlow] REST snapshot failed:', resp.status);
+      }
+    } catch (err) {
+      console.error('[DFlow] REST snapshot error:', err);
+    }
+  }
+
+  private async doConnect(fetchSnapshot: boolean = false): Promise<void> {
+    // Fetch REST snapshot first to ensure we have initial data
+    if (fetchSnapshot) {
+      await this.fetchRestSnapshot();
+    }
+
     try {
       this.ws = new WebSocket(WS_URL);
     } catch (err) {
@@ -113,24 +138,8 @@ export class DFlowConnector implements VenueConnector {
     const delay = this.reconnectDelay + jitter;
     console.log(`[DFlow] Reconnecting in ${Math.round(delay)}ms`);
 
-    this.reconnectTimer = setTimeout(async () => {
-      // Fetch REST snapshot first on reconnect
-      try {
-        const resp = await fetch(REST_URL);
-        if (resp.ok) {
-          const data = await resp.json();
-          const raw: DFlowRawBook = {
-            yes_bids: data.yes_bids ?? {},
-            no_bids: data.no_bids ?? {},
-          };
-          const book = normalizeDFlow(raw);
-          this.bookCb?.(book);
-        }
-      } catch (err) {
-        console.error('[DFlow] REST fallback failed:', err);
-      }
-
-      this.doConnect();
+    this.reconnectTimer = setTimeout(() => {
+      this.doConnect(true); // Fetch snapshot on reconnect too
     }, delay);
 
     this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);

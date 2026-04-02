@@ -6,7 +6,6 @@ import { MARKET } from '@/lib/types';
 
 interface TopBarProps {
   book: NormalizedBook | null;
-  relayStatus: ConnectionStatus;
   isStale: boolean;
 }
 
@@ -77,7 +76,7 @@ function VenueMidPill({
   );
 }
 
-export function TopBar({ book, relayStatus, isStale }: TopBarProps) {
+export function TopBar({ book, isStale }: TopBarProps) {
   const kalshiMid = book ? computeMid(book, 'kalshi') : null;
   const polyMid = book ? computeMid(book, 'polymarket') : null;
   
@@ -101,12 +100,6 @@ export function TopBar({ book, relayStatus, isStale }: TopBarProps) {
         <h1 className="font-display text-lg font-semibold text-gray-100 leading-tight">
           {MARKET.title}
         </h1>
-        
-        {/* Relay status indicator */}
-        <div className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[relayStatus]}`} />
-          <span>relay</span>
-        </div>
         
         {isStale && (
           <span className="text-yellow-500 text-xs px-2 py-0.5 bg-yellow-500/10 rounded">

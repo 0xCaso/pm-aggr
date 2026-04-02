@@ -8,7 +8,7 @@ import { QuotePanel } from '@/components/QuotePanel';
 import type { Side } from '@/lib/types';
 
 export default function Home() {
-  const { book, relayStatus, isStale } = useOrderBook();
+  const { book, isStale } = useOrderBook();
   const [side, setSide] = useState<Side>('yes');
 
   return (
@@ -16,7 +16,6 @@ export default function Home() {
       {/* Combined top bar: title + status */}
       <TopBar
         book={book}
-        relayStatus={relayStatus}
         isStale={isStale}
       />
 
@@ -74,7 +73,7 @@ export default function Home() {
               Quote Calculator
             </h2>
           </div>
-          <div className="flex-1 p-4 overflow-y-auto">
+          <div className="flex-1 p-4 overflow-y-auto min-h-0">
             <QuotePanel side={side} onSideChange={setSide} />
           </div>
         </div>

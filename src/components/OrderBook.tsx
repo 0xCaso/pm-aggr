@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { OrderBook as OrderBookType, PriceLevel, Side, Venue } from '@/lib/types';
 
 type VenueFilter = 'combined' | Venue;
@@ -14,11 +14,22 @@ interface OrderBookProps {
 // Show more levels since we have scrolling
 const MAX_LEVELS = 50;
 
+// Animation duration in ms
+const FLASH_DURATION = 400;
+
 // Aggregate levels by price, tracking per-venue breakdown
 interface AggregatedLevel {
   price: number;
   totalSize: number;
   venues: { venue: Venue; size: number }[];
+}
+
+// Change tracking
+type ChangeType = 'increase' | 'decrease' | 'new' | 'removed' | null;
+
+interface LevelWithChange extends AggregatedLevel {
+  change: ChangeType;
+  prevSize?: number;
 }
 
 function roundToGrouping(price: number, grouping: PriceGrouping): number {
@@ -73,19 +84,71 @@ function aggregateLevels(
   return result;
 }
 
+// Detect changes between previous and current levels
+function detectChanges(
+  current: AggregatedLevel[],
+  previous: Map<number, number>,
+  removedPrices: Set<number>,
+  skipChanges: boolean = false
+): LevelWithChange[] {
+  const result: LevelWithChange[] = [];
+  
+  for (const level of current) {
+    let change: ChangeType = null;
+    let prevSize: number | undefined;
+    
+    if (!skipChanges) {
+      prevSize = previous.get(level.price);
+      
+      if (prevSize === undefined) {
+        change = 'new';
+      } else {
+        const diff = level.totalSize - prevSize;
+        const threshold = Math.max(prevSize * 0.05, 10); // 5% or 10 shares minimum
+        if (diff > threshold) {
+          change = 'increase';
+        } else if (diff < -threshold) {
+          change = 'decrease';
+        }
+      }
+    }
+    
+    result.push({ ...level, change, prevSize });
+  }
+  
+  // Add removed levels (for fade-out animation) - skip if skipChanges
+  if (!skipChanges) {
+    for (const price of removedPrices) {
+      const prevSize = previous.get(price);
+      if (prevSize !== undefined) {
+        result.push({
+          price,
+          totalSize: 0,
+          venues: [],
+          change: 'removed',
+          prevSize,
+        });
+      }
+    }
+  }
+  
+  // Re-sort after adding removed levels
+  result.sort((a, b) => b.price - a.price);
+  
+  return result;
+}
+
 function formatPrice(price: number, grouping: PriceGrouping): string {
   const decimals = grouping === 0.001 ? 1 : 0;
   return `${(price * 100).toFixed(decimals)}¢`;
 }
 
 function formatSize(size: number): string {
-  if (size >= 1000) return `${(size / 1000).toFixed(1)}k`;
-  return size.toFixed(0);
+  return Math.round(size).toLocaleString('en-US');
 }
 
 function formatDollars(value: number): string {
-  if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
-  return `$${value.toFixed(0)}`;
+  return `$${Math.round(value).toLocaleString('en-US')}`
 }
 
 // Liquidity bar - rendered separately on the left side
@@ -114,7 +177,7 @@ function LiquidityBar({
         return (
           <div
             key={bar.venue}
-            className="h-full"
+            className="h-full transition-all duration-300"
             style={{ width: `${widthPct}%`, backgroundColor: baseColor }}
           />
         );
@@ -129,32 +192,66 @@ function LevelRow({
   type,
   cumulativeValue,
   grouping,
+  change,
 }: {
-  level: AggregatedLevel;
+  level: LevelWithChange;
   maxSize: number;
   type: 'bid' | 'ask';
   cumulativeValue: number;
   grouping: PriceGrouping;
+  change: ChangeType;
 }) {
   const textColor = type === 'bid' ? 'text-bid' : 'text-ask';
+  
+  // Determine flash/animation classes
+  let animationClass = '';
+  let rowStyle: React.CSSProperties = {};
+  
+  if (change === 'increase' || change === 'new') {
+    animationClass = 'animate-flash-green';
+  } else if (change === 'decrease') {
+    animationClass = 'animate-flash-red';
+  } else if (change === 'removed') {
+    animationClass = 'animate-fade-out';
+    rowStyle = { opacity: 0 };
+  }
+
+  // Skip rendering completely removed levels after animation
+  if (change === 'removed' && level.totalSize === 0) {
+    return (
+      <div 
+        className={`grid grid-cols-[1fr_56px_56px_64px] items-center gap-4 px-4 py-0.5 text-sm ${animationClass}`}
+        style={rowStyle}
+      >
+        <div className="h-3 flex-1" />
+        <span className={`text-right tabular-nums ${textColor} opacity-50`}>
+          {formatPrice(level.price, grouping)}
+        </span>
+        <span className="text-right text-gray-500 tabular-nums">—</span>
+        <span className="text-right text-gray-600 tabular-nums">—</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-0.5 text-sm hover:bg-gray-800/20 transition-colors">
+    <div 
+      className={`grid grid-cols-[1fr_56px_56px_64px] items-center gap-4 px-4 py-0.5 text-sm hover:bg-gray-800/20 transition-colors ${animationClass}`}
+    >
       {/* Liquidity bar */}
       <LiquidityBar level={level} maxSize={maxSize} />
       
       {/* Price */}
-      <span className={`w-14 text-right tabular-nums ${textColor}`}>
+      <span className={`text-right tabular-nums ${textColor}`}>
         {formatPrice(level.price, grouping)}
       </span>
       
-      {/* Contracts/Size */}
-      <span className="w-14 text-right text-gray-300 tabular-nums">
+      {/* Contracts/Size - with transition */}
+      <span className="text-right text-gray-300 tabular-nums transition-all duration-200">
         {formatSize(level.totalSize)}
       </span>
       
       {/* Dollar value */}
-      <span className="w-16 text-right text-gray-500 tabular-nums">
+      <span className="text-right text-gray-500 tabular-nums">
         {formatDollars(cumulativeValue)}
       </span>
     </div>
@@ -184,6 +281,15 @@ function Spread({ bestBid, bestAsk }: { bestBid: number | null; bestAsk: number 
 export function OrderBook({ book, side }: OrderBookProps) {
   const [filter, setFilter] = useState<VenueFilter>('combined');
   const [grouping, setGrouping] = useState<PriceGrouping>(0.001);
+  
+  // Track previous levels for change detection
+  const prevBidsRef = useRef<Map<number, number>>(new Map());
+  const prevAsksRef = useRef<Map<number, number>>(new Map());
+  const prevSideRef = useRef<Side>(side);
+  const [changeKey, setChangeKey] = useState(0);
+
+  // Detect if side changed - skip animations when switching YES/NO
+  const sideChanged = prevSideRef.current !== side;
 
   const sideBook = book ? book[side] : null;
   
@@ -201,8 +307,69 @@ export function OrderBook({ book, side }: OrderBookProps) {
   const asksLowToHigh = [...allAsks].reverse();
   const asks = asksLowToHigh.slice(0, MAX_LEVELS);
   
-  // For asks display: highest at top, lowest near spread (reverse back)
-  const displayAsks = [...asks].reverse();
+  // Detect changes (skip if side changed to avoid flash on YES/NO switch)
+  const currentBidPrices = new Set(bids.map(b => b.price));
+  const currentAskPrices = new Set(asks.map(a => a.price));
+  
+  const removedBidPrices = new Set<number>();
+  const removedAskPrices = new Set<number>();
+  
+  if (!sideChanged) {
+    for (const price of prevBidsRef.current.keys()) {
+      if (!currentBidPrices.has(price)) {
+        removedBidPrices.add(price);
+      }
+    }
+    for (const price of prevAsksRef.current.keys()) {
+      if (!currentAskPrices.has(price)) {
+        removedAskPrices.add(price);
+      }
+    }
+  }
+  
+  // If side changed, skip change detection to avoid flash on YES/NO switch
+  const bidsWithChanges = detectChanges(
+    bids, 
+    prevBidsRef.current, 
+    removedBidPrices,
+    sideChanged
+  );
+  const asksWithChanges = detectChanges(
+    asks, 
+    prevAsksRef.current, 
+    removedAskPrices,
+    sideChanged
+  );
+  
+  // Update previous refs after detecting changes
+  useEffect(() => {
+    const newBidMap = new Map<number, number>();
+    const newAskMap = new Map<number, number>();
+    
+    for (const level of bids) {
+      newBidMap.set(level.price, level.totalSize);
+    }
+    for (const level of asks) {
+      newAskMap.set(level.price, level.totalSize);
+    }
+    
+    prevBidsRef.current = newBidMap;
+    prevAsksRef.current = newAskMap;
+    prevSideRef.current = side;
+    
+    // Trigger re-render to clear animations after duration
+    const timer = setTimeout(() => {
+      setChangeKey(k => k + 1);
+    }, FLASH_DURATION);
+    
+    return () => clearTimeout(timer);
+  }, [bids, asks, side]);
+  
+  // For asks display: we want highest at top, lowest near spread (bottom)
+  // asksWithChanges is sorted high-to-low by detectChanges()
+  // We need to reverse it so lowest prices are first, then flex-col-reverse puts them at bottom
+  const displayAsks = [...asksWithChanges.filter(l => l.change !== 'removed')].reverse();
+  const displayBids = bidsWithChanges.filter(l => l.change !== 'removed');
   
   // Calculate max size for bar scaling (across both sides)
   const maxBidSize = bids.reduce((max, l) => Math.max(max, l.totalSize), 0);
@@ -238,32 +405,34 @@ export function OrderBook({ book, side }: OrderBookProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Column headers */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-1.5 text-xs text-gray-500 font-medium border-b border-gray-800/50 shrink-0">
+      {/* Column headers - add pr-2 to account for scrollbar width */}
+      <div className="grid grid-cols-[1fr_56px_56px_64px] items-center gap-4 px-4 pr-6 py-1.5 text-xs text-gray-500 font-medium border-b border-gray-800/50 shrink-0">
         <span>Depth</span>
-        <span className="w-14 text-right">Price</span>
-        <span className="w-14 text-right">Size</span>
-        <span className="w-16 text-right">Total</span>
+        <span className="text-right">Price</span>
+        <span className="text-right">Size</span>
+        <span className="text-right">Total</span>
       </div>
 
       {/* Scrollable order book area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Asks section - scrollable, uses flex-col-reverse so lowest prices are at bottom near spread */}
+        {/* Asks section - scrollable, flex-col-reverse puts first items at bottom (near spread) */}
         <div className="h-1/2 overflow-y-auto flex flex-col-reverse">
           {displayAsks.length === 0 ? (
             <div className="text-gray-600 text-xs px-4 py-2 text-center">
               No asks
             </div>
           ) : (
-            // Reverse the array since flex-col-reverse will flip the display order
-            [...displayAsks].reverse().map((level, i) => (
+            // displayAsks is low-to-high, flex-col-reverse renders from bottom
+            // Result: lowest prices at bottom (near spread), highest at top
+            displayAsks.map((level, i) => (
               <LevelRow
-                key={`ask-${level.price}-${i}`}
+                key={`ask-${level.price}-${i}-${changeKey}`}
                 level={level}
                 maxSize={maxSize}
                 type="ask"
                 cumulativeValue={askCumulatives.get(level.price) || 0}
                 grouping={grouping}
+                change={level.change}
               />
             ))
           )}
@@ -274,19 +443,20 @@ export function OrderBook({ book, side }: OrderBookProps) {
 
         {/* Bids section - scrollable */}
         <div className="h-1/2 overflow-y-auto">
-          {bids.length === 0 ? (
+          {displayBids.length === 0 ? (
             <div className="text-gray-600 text-xs px-4 py-2 text-center">
               No bids
             </div>
           ) : (
-            bids.map((level, i) => (
+            displayBids.map((level, i) => (
               <LevelRow
-                key={`bid-${level.price}-${i}`}
+                key={`bid-${level.price}-${i}-${changeKey}`}
                 level={level}
                 maxSize={maxSize}
                 type="bid"
                 cumulativeValue={bidCumulatives.get(level.price) || 0}
                 grouping={grouping}
+                change={level.change}
               />
             ))
           )}
